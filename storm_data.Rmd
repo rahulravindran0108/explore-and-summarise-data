@@ -10,11 +10,11 @@ Load the libraries we will need:
 library(ggplot2)
 library(maps)
 library(mapproj)
-
+library(rCharts)
 ```
 Our data is derived from the [NOAA Storm Database](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).  
 Read in the data, mapping as many fields to numerical fields as possible. We are not converting the dates at this point, as we do not need the dates in our analysis. More information about the data file is available from the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf).  
-```{r}
+```{r echo=FALSE}
 data <- read.csv("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",", 
     colClasses = c("numeric", "character", "character", "character", "numeric", 
         "character", "character", "character", "numeric", "character", "character", 
@@ -41,36 +41,63 @@ The EVTYPE fields contains a large number of errors and issues. In order to repo
 - other
 This is also the order of importance with which we will treat the various events. Convection events are the most important, so this order will also decide the tie-breaker if an event belongs to more than one category. 
 
-```{r}
-convection <- c("?.*LIGHTING|LIGHTN|LIGNTNING|TORNADO|TORNDAO|WIND|TSTM|THUNDER|WND|HAIL|TURBULENCE|GUSTNADO?.*")
-temperature <- c("?.*COLD|HEAT|WARM|TEMPERATURE|THERMIA?.*")
-flood <- c("?.*FLOOD|RISING|STREAM FLD?.*")
-marine <- c("?.*COASTAL|TSUNAMI|CURRENT|SWELLS|TIDE|WAVE|SEAS|SURF|HIGH WATER?.*")
-cyclones <- c("?.*CYCLONE|HURRICANE|TYPHOON?.*")
-winter <- c("?.*WINT|ICE|AVALAN|SLEET|SNOW|FREEZ|BLIZZ|FROST|GLAZE|MIXED?.*")
+```{r tidy=FALSE, echo = FALSE}
+# using the storm data categories from NOCC, annotate the database with respect to the vents specified by NOCC
 
-smallData[grepl(winter, smallData$EVTYPE, ignore.case = TRUE), "category"] = "Winter"
-smallData[grepl(cyclones, smallData$EVTYPE, ignore.case = TRUE), "category"] = "Tropical Cyclones"
-smallData[grepl(marine, smallData$EVTYPE, ignore.case = TRUE), "category"] = "Marine"
-smallData[grepl(flood, smallData$EVTYPE, ignore.case = TRUE), "category"] = "Flood"
-smallData[grepl(temperature, smallData$EVTYPE, ignore.case = TRUE), "category"] = "Extreme Temperatures"
-smallData[grepl(convection, smallData$EVTYPE, ignore.case = TRUE), "category"] = "Convection"
+convection <- c("?.*LIGHTING|LIGHTN|LIGNTNING|TORNADO|
+                TORNDAO|WIND|TSTM|THUNDER|WND|HAIL|TURBULENCE|GUSTNADO?.*")
+
+temperature <- c("?.*COLD|HEAT|WARM|TEMPERATURE|THERMIA?.*")
+
+flood <- c("?.*FLOOD|RISING|STREAM FLD?.*")
+
+marine <- c("?.*COASTAL|TSUNAMI|CURRENT|SWELLS|
+            TIDE|WAVE|SEAS|SURF|HIGH WATER?.*")
+
+cyclones <- c("?.*CYCLONE|HURRICANE|TYPHOON?.*")
+
+winter <- c("?.*WINT|ICE|AVALAN|SLEET|SNOW|
+            FREEZ|BLIZZ|FROST|GLAZE|MIXED?.*")
+
+#find and replace all occurences of events and aggregate using categories above
+smallData[grepl(winter, smallData$EVTYPE,
+                ignore.case = TRUE), "category"] = "Winter"
+
+smallData[grepl(cyclones, smallData$EVTYPE,
+                ignore.case = TRUE), "category"] = "Tropical Cyclones"
+smallData[grepl(marine, smallData$EVTYPE,
+                ignore.case = TRUE), "category"] = "Marine"
+smallData[grepl(flood, smallData$EVTYPE,
+                ignore.case = TRUE), "category"] = "Flood"
+smallData[grepl(temperature, smallData$EVTYPE,
+                ignore.case = TRUE), "category"] = "Extreme Temperatures"
+smallData[grepl(convection, smallData$EVTYPE,
+                ignore.case = TRUE), "category"] = "Convection"
 smallData[is.na(smallData$category), "category"] = "Other"
 ```
 The PROPDMG and CROPDMG fields need some conversion before we can do math on them. Here is the code for that. We add two extra columns that contain the property and crop damage.  
 
-```{r}
+```{r tidy=FALSE, echo=FALSE}
+# converting each class of damages to respective damages in millions(USD)
 smallData$propertydamageEXP = 1
-smallData[grepl("h|H", smallData$PROPDMGEXP, ignore.case = TRUE), "propertydamageEXP"] = 100
-smallData[grepl("k|K", smallData$PROPDMGEXP, ignore.case = TRUE), "propertydamageEXP"] = 1000
-smallData[grepl("m|M", smallData$PROPDMGEXP, ignore.case = TRUE), "propertydamageEXP"] = 1e+06
-smallData[grepl("b|B", smallData$PROPDMGEXP, ignore.case = TRUE), "propertydamageEXP"] = 1e+09
+smallData[grepl("h|H", smallData$PROPDMGEXP, 
+                ignore.case = TRUE), "propertydamageEXP"] = 100
+smallData[grepl("k|K", smallData$PROPDMGEXP,
+                ignore.case = TRUE), "propertydamageEXP"] = 1000
+smallData[grepl("m|M", smallData$PROPDMGEXP,
+                ignore.case = TRUE), "propertydamageEXP"] = 1e+06
+smallData[grepl("b|B", smallData$PROPDMGEXP,
+                ignore.case = TRUE), "propertydamageEXP"] = 1e+09
 smallData$propertydamage = smallData$PROPDMG * smallData$propertydamageEXP
 
+# converting each class of damages to respective damages in millions(USD)
 smallData$cropdamageEXP = 1
-smallData[grepl("k|K", smallData$CROPDMGEXP, ignore.case = TRUE), "cropdamageEXP"] = 1000
-smallData[grepl("m|M", smallData$CROPDMGEXP, ignore.case = TRUE), "cropdamageEXP"] = 1e+06
-smallData[grepl("b|B", smallData$CROPDMGEXP, ignore.case = TRUE), "cropdamageEXP"] = 1e+09
+smallData[grepl("k|K", smallData$CROPDMGEXP,
+                ignore.case = TRUE), "cropdamageEXP"] = 1000
+smallData[grepl("m|M", smallData$CROPDMGEXP,
+                ignore.case = TRUE), "cropdamageEXP"] = 1e+06
+smallData[grepl("b|B", smallData$CROPDMGEXP,
+                ignore.case = TRUE), "cropdamageEXP"] = 1e+09
 smallData$cropdamage = smallData$CROPDMG * smallData$cropdamageEXP
 ```
 
@@ -79,6 +106,7 @@ Having gone through the steps above, we now have clean dataset containing all th
 
 ## Exploratory Data Analysis
 We begin by exploring all the variables in the data set.
+
 ### Univariate Plots
 
 ```{r}
@@ -93,20 +121,29 @@ ggplot(out, aes(x=count)) + geom_histogram(binwidth=200)
 
 Figure above shows the frequency graph of number of events occuring in the respective counties. The mean value of frequence of occurence is around 22, thus showing that on an average you can expect a place to have an event occuring 22 time over the years between 1950-2011. Let's have a closer look at the regions with lot of events occuring in this time span.
 
-```{r}
+```{r tidy=FALSE}
 maxregions<-subset(out,out$count>1500)
-ggplot(maxregions, aes(x=item, y = count, fill = count))+theme(axis.text.x = element_text(angle = 90, hjust = 1))+geom_bar(stat="identity")+xlab("County Names")+ylab("Number of weather events occurred")+ggtitle("Largest number of events that have occurred in Countys")
+ggplot(maxregions, aes(x=item, y = count, fill = count))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  geom_bar(stat="identity")+xlab("County Names")+
+  ylab("Number of weather events occurred")+
+  ggtitle("Largest number of events that have occurred in Countys")
 ```
 
 The County of Washington has the highest number of weather events that has occurred over these years. Let's now have a close look as to what events have taken place most in washington as per the category we have assigned.
 
-```{r message=FALSE, warning=FALSE}
-washington2<-subset(smallData, COUNTYNAME == "WASHINGTON" & FATALITIES > 0)
+```{r message=FALSE, warning=FALSE, tidy=FALSE}
+washington2<-subset(smallData, 
+                    COUNTYNAME == "WASHINGTON" & FATALITIES > 0)
 washington1<-table(washington2$category)
 
-washington<-data.frame(events=names(unlist(washington1)), count = unlist(washington1)[], stringsAsFactors = FALSE)
+washington<-data.frame(events=names(unlist(washington1)),
+                       count = unlist(washington1)[], stringsAsFactors = FALSE)
 
-ggplot(washington, aes(x=events, y = count, fill = count))+geom_bar(stat="identity")+xlab("Events")+ylab("Number of occurrences")+ggtitle("Most prominent Disaster in Washington")
+ggplot(washington, aes(x=events, y = count, fill = count))+
+  geom_bar(stat="identity")+xlab("Events")+
+  ylab("Number of occurrences")+
+  ggtitle("Most prominent Disaster in Washington")
 
 ```
 
@@ -122,21 +159,72 @@ Breaking our category variable into individual events, we get the following resu
 table(washington2$EVTYPE)
 ```
 
-Lets now look at some box plots of few variables:
+Aggregating the dataset over years, we can plot more histograms depicting results of how the number of weather events have grown over the years
 
 ```{r}
-boxplot(FATALITIES ~ INJURIES, data=smallData,main="box plot of fatalities vs injuries", ylab("fatalities"),xlab("Injuries"))
+years<-read.csv('years.csv')
+ggplot(data=years, aes(x=YEAR, y=COUNT)) +
+   geom_bar(stat="identity")+scale_x_continuous()
 ```
 
-We can further get details of mean,median and other summary data of fatalities and injuries which contribute to the population damage 
-
-```{r}
-summary(smallData$FATALITIES)
-```
+As you can see over the past few years there has been a considerable increase in the number of events. Let's look at a line graph depicting the same but in a more interactive manner
 
 ```{r}
-summary(smallData$INJURIES)
+ggplot(data=years, aes(x=YEAR, y=COUNT, group=1)) +
+    geom_line() +
+    geom_point()
+
 ```
+
+So expecting so many events yearly, it would come off as a natural expectation that the number of fatalities should also increase yearly. Let's plot the fatalities over the years.
+
+```{r}
+ggplot(data=years, aes(x=YEAR, y=FATALITIES, group=1)) +
+    geom_line() +
+    geom_point()
+```
+
+As you can see the number of fatalities rise at the same pace the number of events have increased, however in recent times it has taken a dip urging the question as there been some kind of mitigation done by gvernement over the years. A closer look at the INJURIES gives us more insights about the results
+
+```{r}
+ggplot(data=years, aes(x=YEAR, y=INJURIES, group=1)) +
+    geom_line() +
+    geom_point()
+
+```
+
+Lets take a look at state wise event count. This will give us details regarding which state has been hit with most number of events over the span of 1950-2011.
+
+```{r}
+states<-read.csv('aggregate.csv')
+ggplot(data=states, aes(x=STATE, y=COUNT)) +
+        geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Clearly, the state if Texas has seen a lot of events over the years. However, to get an intuition of which state has been hit with most fatal events over the years. Let's take a look at state wise population damage.
+
+```{r}
+
+ggplot(data=states, aes(x=STATE, y=FATALITIES)) +
+        geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+The state of illinois has been most severly hit by weather events culminating in many deaths.
+
+```{r}
+
+ggplot(data=states, aes(x=STATE, y=PROPDMG)) +
+        geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Property damage on the other hand has shows data consisent with further analysis at the end of the report. We find that kentucky is the worst hit in terms of property damage. The histogra depicting the crop damages that have occured over the years are depicted below:
+
+```{r}
+
+ggplot(data=states, aes(x=STATE, y=CROPDMG)) +
+        geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
 ## Bivariate Plots
 Let's look at a few scatter plots to identify - if there is any kind of relationship present between a few features. 
 
@@ -153,7 +241,7 @@ Let's look at the relationship between property damage and crop damage:
 ```{r message=FALSE,warning=FALSE}
 fatalities<-subset(smallData,FATALITIES > 0 & INJURIES > 0)
 x<-ggplot(fatalities, aes(x=PROPDMG,y=CROPDMG,))+geom_point(shape=1)+geom_smooth()
-x + facet_grid(. ~ category,scale="free")+scale_y_continuous(limits=c(0,1000))
+x + facet_grid(. ~ category)+scale_y_continuous(limits=c(0,1000))
 ```
 
 The x-axis depicts property damage, while the y axis shows corresponding crop damage. I have faceted accroding to categories of events taking place so as to get more perspective into relationship between events.
@@ -165,14 +253,20 @@ Events like Extreme Temperatures have a large effect on crops rather than proper
 ##Multivariate Plots
 This section will cover more detailed plots and multiple scatter plots togther to find some kind of relationships between variables quickly.
 
-```{r message=FALSE,warning=FALSE}
-ggplot(smallData, aes(LONGITUDE, LATITUDE, colour = smallData$FATALITIES,100)) + geom_point(size = 4,shape = 1, colour = "steelblue", alpha = 0.4) + labs(x = "Longitude", y = "Latitude") + scale_colour_grey() + theme_bw() 
+```{r message=FALSE,warning=FALSE, tidy=FALSE}
+ggplot(smallData, aes(LONGITUDE, LATITUDE, colour = smallData$FATALITIES,100))+
+  geom_point(size = 4,shape = 1, colour = "steelblue", alpha = 0.4) +
+  labs(x = "Longitude", y = "Latitude") + 
+  scale_colour_grey() + theme_bw() 
 ```
 
 Figure above shows the fatalities and in which Latitude and Longitude they are concentrated. Most of the data shows a slight amount of fatalities due to the overplotting of blue dots. In order to get a better perspective we will use the maps package to plot the fatalities on Map of USA.
 
 ```{r message=FALSE,warning=FALSE}
-ggplot(smallData, aes(LONGITUDE, LATITUDE, colour = smallData$FATALITIES)) + geom_point(size = 1,shape = 1, colour = "steelblue", alpha = 0.4) + labs(x = "Longitude", y = "Latitude") + scale_colour_grey() + theme_bw()+facet_grid(~category)
+ggplot(smallData, aes(LONGITUDE, LATITUDE, colour = smallData$FATALITIES)) + 
+  geom_point(size = 1,shape = 1, colour = "steelblue", alpha = 0.4) + 
+  labs(x = "Longitude", y = "Latitude") + scale_colour_grey() + 
+  theme_bw()+facet_grid(~category)
 ```
 
 Figure above shows multiple deaths in the case of Convection Events and Flood Events.
@@ -206,11 +300,9 @@ We create a new set with the aggregate of the incidents grouped by the event typ
 ### Results
 ## Severe weather events that cause the largest number of incidents
 Calculate a total of all fatalities and injuries, so that we can find what events have the highest number of incidents. The new column is called incidents.  
-
 ```{r}
 smallData$incidents = smallData$FATALITIES + smallData$INJURIES
 ```
-
 We create a new set with the aggregate of the incidents grouped by the event types.
 
 ```{r}
@@ -218,7 +310,9 @@ incidentData <- aggregate(list(incidents = smallData$incidents), by = list(event
     FUN = sum, na.rm = TRUE)
 ```
 
+
 Here is the overview of the event categories with the number of incidents  
+
 
 ```{r}
 incidentData$event <- reorder(incidentData$event, -incidentData$incidents)
@@ -279,10 +373,9 @@ aggdata$Damages<-aggdata$CROPDMG+aggdata$PROPDMG
 p <- ggplot(aggdata, aes(map_id = STATE))
 p <- p + geom_map(aes(fill = Damages), map = states_map, colour='black') + expand_limits(x = states_map$long, y = states_map$lat)
 p <- p + coord_map() + theme_bw()
-p <- p + labs(x = "Long", y = "Lat", title = "Economic Damages")
+p <- p + labs(x = "Long", y = "Lat", title = "Economic Damages in millions(USD)")
 print(p)
 ```
-
 As we can see the western and central states of USA have been hit hard causing huge losses to economy fro the years 1950-2011.
 
 ##Reflections
