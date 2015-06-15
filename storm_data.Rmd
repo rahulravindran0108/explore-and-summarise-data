@@ -1,8 +1,8 @@
 # Analysis of Fatalities, injuries and damage caused by severe weather events
 ## Synopsis
-Based on recorded storm data from 1950 through 2011, this document tries to provide some insight into the effects of severe weather on the public. These kinds of answers can be beneficial to plan responses to severe weather events and to prepare contingency plans.
+Based on recorded storm data from 1950 through 2011, this document tries to provide some insight into the effects of severe weather on the both the economic and population of United States of America. These kinds of answers can be beneficial to plan responses to severe weather events and to prepare contingency plans.
 
-We found that convection events (Lightning, Tornadoes, Thunderstorm Wind, Hail) are the most harmful to public health. We also found that Flood events (Flash Floods, River Floods) are the most damaging to property and crops.
+We found that convection events (Lightning, Tornadoes, Thunderstorm Wind, Hail) are the most harmful to public health. We also found that Flood events (Flash Floods, River Floods) are the most damaging to property and crops. Further, we looked at states having most damages to property and crops and states which had more population damages.
 
 # Data Processing
 Load the libraries we will need:
@@ -13,7 +13,8 @@ library(mapproj)
 library(rCharts)
 ```
 Our data is derived from the [NOAA Storm Database](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).  
-Read in the data, mapping as many fields to numerical fields as possible. We are not converting the dates at this point, as we do not need the dates in our analysis. More information about the data file is available from the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf).  
+Read in the data, mapping as many fields to numerical fields as possible. We are not converting the dates at this point, as we do not need the dates in our analysis. More information about the data file is available from the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf). The rest of the data is read in from huge csv containing more than 9 million observations.
+
 ```{r echo=FALSE}
 data <- read.csv("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",", 
     colClasses = c("numeric", "character", "character", "character", "numeric", 
@@ -24,7 +25,16 @@ data <- read.csv("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",",
         "character", "character", "numeric", "numeric", "numeric", "numeric", 
         "character", "numeric"))
 ```
-The initial set has 902,297 observations. We first throw away all data that does not contain information we are interested in by filtering out data that did not cause fatalities, injuries or damage.  
+
+
+The initial set has 902,297 observations. We first throw away all data that does not contain information we are interested in by filtering out data that did not cause fatalities, injuries or damage. Let's take a look at summary of the initial data set
+
+```{r}
+summary(data)
+```
+
+We then filter out the unwanted events and keep only those events that have some kind of fatalities.
+
 ```{r}
 smallData <- data[data$FATALITIES > 0 | data$INJURIES > 0 | data$PROPDMG > 0 | 
     data$CROPDMG > 0, ]
@@ -75,7 +85,10 @@ smallData[grepl(convection, smallData$EVTYPE,
                 ignore.case = TRUE), "category"] = "Convection"
 smallData[is.na(smallData$category), "category"] = "Other"
 ```
-The PROPDMG and CROPDMG fields need some conversion before we can do math on them. Here is the code for that. We add two extra columns that contain the property and crop damage.  
+
+The PROPDMG and CROPDMG fields need some conversion before we can do math on them.  We add two extra columns that contain the property and crop damage.  
+we replace each class using a standard to define the damage expenses.
+
 
 ```{r tidy=FALSE, echo=FALSE}
 # converting each class of damages to respective damages in millions(USD)
@@ -102,7 +115,7 @@ smallData$cropdamage = smallData$CROPDMG * smallData$cropdamageEXP
 ```
 
 
-Having gone through the steps above, we now have clean dataset containing all the information to perform exploratory data analysis.
+Having gone through the steps above, we now have clean dataset containing all the information to perform exploratory data analysis. Let us know begin exploring what the dataset has to say
 
 ## Exploratory Data Analysis
 We begin by exploring all the variables in the data set.
@@ -167,7 +180,7 @@ ggplot(data=years, aes(x=YEAR, y=COUNT)) +
    geom_bar(stat="identity")+scale_x_continuous()
 ```
 
-As you can see over the past few years there has been a considerable increase in the number of events. Let's look at a line graph depicting the same but in a more interactive manner
+As you can see over the past few years there has been a considerable increase in the number of events. This provides isnights to the dact that due to global warming and other environmental degredation, there has been a rise in calamities over the years. Let's look at a line graph depicting the same.
 
 ```{r}
 ggplot(data=years, aes(x=YEAR, y=COUNT, group=1)) +
@@ -201,7 +214,7 @@ ggplot(data=states, aes(x=STATE, y=COUNT)) +
         geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-Clearly, the state if Texas has seen a lot of events over the years. However, to get an intuition of which state has been hit with most fatal events over the years. Let's take a look at state wise population damage.
+Clearly, the state of Texas has seen a lot of events over the years. However, to get an intuition of which state has been hit with most fatal events over the years. Let's take a look at state wise population damage.
 
 ```{r}
 
@@ -217,7 +230,7 @@ ggplot(data=states, aes(x=STATE, y=PROPDMG)) +
         geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-Property damage on the other hand has shows data consisent with further analysis at the end of the report. We find that kentucky is the worst hit in terms of property damage. The histogra depicting the crop damages that have occured over the years are depicted below:
+Property damage on the other hand has shows data consisent with further analysis at the end of the report. We find that kentucky is the worst hit in terms of property damage. The histogram depicting the crop damages that have occured over the years are depicted below:
 
 ```{r}
 
