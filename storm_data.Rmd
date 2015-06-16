@@ -6,20 +6,24 @@ We found that convection events (Lightning, Tornadoes, Thunderstorm Wind, Hail) 
 
 # Data Processing
 Load the libraries we will need:
-```{r}
+
+```{r warning=FALSE}
 library(ggplot2)
 library(maps)
 library(mapproj)
 library(rCharts)
 ```
+
 Our data is derived from the [NOAA Storm Database](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).  
 Read in the data, mapping as many fields to numerical fields as possible. We are not converting the dates at this point, as we do not need the dates in our analysis. More information about the data file is available from the National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf). The rest of the data is read in from huge csv containing more than 9 million observations.
 
-```{r echo=FALSE}
+```{r echo=FALSE, cache=TRUE}
 data <- read.csv("repdata_data_StormData.csv.bz2", header = TRUE, sep = ",", 
     colClasses = c("numeric", "character", "character", "character", "numeric", 
-        "character", "character", "character", "numeric", "character", "character", 
-        "character", "character", "numeric", "character", "character", "character", 
+        "character", "character", "character", "numeric", "character",
+        "character", 
+        "character", "character", "numeric", "character", "character",
+        "character", 
         "character", "numeric", "numeric", "character", "numeric", "numeric", 
         "numeric", "numeric", "character", "numeric", "character", "character", 
         "character", "character", "numeric", "numeric", "numeric", "numeric", 
@@ -35,7 +39,7 @@ summary(data)
 
 We then filter out the unwanted events and keep only those events that have some kind of fatalities.
 
-```{r}
+```{r cache=TRUE}
 smallData <- data[data$FATALITIES > 0 | data$INJURIES > 0 | data$PROPDMG > 0 | 
     data$CROPDMG > 0, ]
 ```
@@ -49,6 +53,7 @@ The EVTYPE fields contains a large number of errors and issues. In order to repo
 - tropical cyclon
 - winter
 - other
+
 This is also the order of importance with which we will treat the various events. Convection events are the most important, so this order will also decide the tie-breaker if an event belongs to more than one category. 
 
 ```{r tidy=FALSE, echo = FALSE}
@@ -122,19 +127,90 @@ We begin by exploring all the variables in the data set.
 
 ### Univariate Plots
 
-```{r}
+```{r echo=FALSE}
 county<-table(smallData$COUNTYNAME)
 out=data.frame(item=names(unlist(county)),count=unlist(county)[],
                 stringsAsFactors=FALSE)
 ```
 
-```{r}
-ggplot(out, aes(x=count)) + geom_histogram(binwidth=200)
+```{r echo=FALSE}
+ggplot(out, aes(x=count)) + geom_histogram(binwidth=50)+
+  xlab("number of events occurring in respective counties")+xlim(0,500)+
+  scale_x_continuous()
 ```
 
-Figure above shows the frequency graph of number of events occuring in the respective counties. The mean value of frequence of occurence is around 22, thus showing that on an average you can expect a place to have an event occuring 22 time over the years between 1950-2011. Let's have a closer look at the regions with lot of events occuring in this time span.
+Figure above shows the frequency graph of number of events occuring in the respective counties. The mean value of frequence of occurrence is around 22, thus showing that on an average you can expect a place to have an event occuring 22 time over the years between 1950-2011.
 
-```{r tidy=FALSE}
+```{r}
+mean(out$count)
+```
+
+After adding the category variable let's take a look at a few stats of the subsetted dataset
+
+```{r}
+summary(smallData)
+```
+
+Let us explore a few univariate plots to find some trend in the data set.
+
+```{r}
+ggplot(smallData, aes(x=category)) + geom_histogram(binwidth=50)+
+  xlab("Categories of Events Responsible for most damage")
+```
+
+The figure above shows a univariate plot showing the number of occurences of different events that have occured between the years 1950-2011. Convection events have occured the most over these years with second place - floods. Convection events comprise of the following
+- LIGHTING
+- TORNADO
+- WND
+- HAIL
+
+It is also worth exploring the distribution of fatalities and injuries over the years
+
+```{r}
+ggplot(smallData, aes(x=FATALITIES)) + geom_histogram()+
+  xlab("Number of Fatalities")+xlim(0,10)
+```
+
+The fatalities plot show that most events did not incur any fatalities. This is due to the fact that we are looking at individual events at individual places over the years. Yearly Fatalities and Injuries would sum up to a bigger number. Therefore, plotting injuries too would not make any sense as both of these plots would show the same variation. It is better to capture property damage.
+
+```{r}
+ggplot(smallData, aes(x=PROPDMG)) + geom_histogram()+
+  xlab("Property Damage in Millions")+xlim(0,30)
+```
+
+This plot would have surely captured the data as property damages occur even if threat to population is less even in the mildest of events. we find that on an average around 42 million USD worth of damages are caused due to natural calamities.
+
+```{r}
+summary(smallData$PROPDMG)
+```
+
+Another important aspect of economic damages that are caused by natural disasters are crop damages. Lets take a look at what the graphs have to say:
+
+```{r}
+summary(smallData$CROPDMG)
+```
+
+```{r}
+ggplot(smallData, aes(x=CROPDMG)) + geom_histogram()+
+  xlab("Crops Damage in Millions")+xlim(0,30)
+```
+
+Damages to agriculture and crops is less as compared to property damages.
+
+```{r}
+ll<-data.frame(table(smallData$EVTYPE))
+ll<-ll[order(-ll[,2]),]
+ll[1:20,]
+```
+
+The table above shows the top 20 event types and TSTM and thunderstorm are the top 2 most recurrent events in USA. After exploring the most influential variables, let's have a look at some bivariate plots to understand what the data has to say more to us.
+
+## Bivariate Plots
+
+Let's have a closer look at the regions with lot of events occuring in the time span between 1950-2011. I am subsetting the data so as to plot only those county's that have witnessed more than 1500 events
+
+
+```{r tidy=FALSE, echo=FALSE}
 maxregions<-subset(out,out$count>1500)
 ggplot(maxregions, aes(x=item, y = count, fill = count))+
   theme(axis.text.x = element_text(angle = 90, hjust = 1))+
@@ -143,7 +219,8 @@ ggplot(maxregions, aes(x=item, y = count, fill = count))+
   ggtitle("Largest number of events that have occurred in Countys")
 ```
 
-The County of Washington has the highest number of weather events that has occurred over these years. Let's now have a close look as to what events have taken place most in washington as per the category we have assigned.
+The County of Washington has the highest number of weather events that has occurred over these years. Let's now have a close look as to what events have taken place most in washington as per the category we have assigned. In order to further investigate what type of events were occurring in washington, I decided to subset the data to have alook at the county of Washington more carefully.
+
 
 ```{r message=FALSE, warning=FALSE, tidy=FALSE}
 washington2<-subset(smallData, 
@@ -160,11 +237,12 @@ ggplot(washington, aes(x=events, y = count, fill = count))+
 
 ```
 
-Therefore, we can conclude that the most prominent disaster in Washington is Convection. Let us now see if these were the cause of the most number of fatalities in the case of washington.
+Therefore, we can conclude that the most prominent disaster in Washington is Convection. Let us now see if these were the cause of the most number of fatalities in the case of washington. The summary of washington dataset gives us the following values.
 
 ```{r}
-table(washington$category)
+summary(washington)
 ```
+
 
 Breaking our category variable into individual events, we get the following result
 
@@ -172,88 +250,106 @@ Breaking our category variable into individual events, we get the following resu
 table(washington2$EVTYPE)
 ```
 
-Aggregating the dataset over years, we can plot more histograms depicting results of how the number of weather events have grown over the years
+Aggregating the dataset over years, we can plot more histograms depicting results of how the number of weather events have grown over the years. One of the primary reasons I wished to do this is to find out for a fact that has the number of events grown considerably over the years 1950-2011.
 
-```{r}
+
+```{r echo=FALSE}
 years<-read.csv('years.csv')
-ggplot(data=years, aes(x=YEAR, y=COUNT)) +
-   geom_bar(stat="identity")+scale_x_continuous()
-```
-
-As you can see over the past few years there has been a considerable increase in the number of events. This provides isnights to the dact that due to global warming and other environmental degredation, there has been a rise in calamities over the years. Let's look at a line graph depicting the same.
-
-```{r}
 ggplot(data=years, aes(x=YEAR, y=COUNT, group=1)) +
     geom_line() +
     geom_point()
 
 ```
 
+As you can see over the past few years there has been a considerable increase in the number of events. This provides isnights to the dact that due to global warming and other environmental degredation, there has been a rise in calamities over the years.
+
+
+From the line graph above, we can see the trends more clearly as to how the events have grown considerably. In order to further look at how fatalities and injuries have risen, let's take a look at a few more graphs.
+
 So expecting so many events yearly, it would come off as a natural expectation that the number of fatalities should also increase yearly. Let's plot the fatalities over the years.
 
-```{r}
+```{r echo=FALSE}
 ggplot(data=years, aes(x=YEAR, y=FATALITIES, group=1)) +
     geom_line() +
     geom_point()
 ```
 
-As you can see the number of fatalities rise at the same pace the number of events have increased, however in recent times it has taken a dip urging the question as there been some kind of mitigation done by gvernement over the years. A closer look at the INJURIES gives us more insights about the results
+The number of fatalities rise at the same pace the number of events have increased, however in recent times it has taken a dip urging the question as there been some kind of mitigation done by gvernement over the years. A closer look at the INJURIES gives us more insights about the results. If the same trend is followed, we can see that there has been considerable efforts in educating the masses about how to mitigate the destructive effects of the weather.
 
-```{r}
+
+```{r echo=FALSE}
 ggplot(data=years, aes(x=YEAR, y=INJURIES, group=1)) +
     geom_line() +
     geom_point()
 
 ```
 
-Lets take a look at state wise event count. This will give us details regarding which state has been hit with most number of events over the span of 1950-2011.
+One of the other isights I wish to explore is the state wise event changes that has taken place over the years. For this, I aggregated the data over the states to plot a few more results.
 
-```{r}
+Lets take a look at state wise event count. This will give us details regarding which state has been hit with most number of events over the span of 1950-2011. It is important to know which states have been effected the most as this will form a base so as to create more awareness among the masses with respect to the events that occur in these states.
+
+```{r echo=FALSE}
 states<-read.csv('aggregate.csv')
 ggplot(data=states, aes(x=STATE, y=COUNT)) +
-        geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+        geom_bar(stat="identity")+scale_x_discrete()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("number of events vs states")
 ```
 
-Clearly, the state of Texas has seen a lot of events over the years. However, to get an intuition of which state has been hit with most fatal events over the years. Let's take a look at state wise population damage.
+Clearly, the state of Texas has seen a lot of events over the years. However, to get an intuition of which state has been hit with most fatal events over the years. Let's take a look at state wise population damage. It would be right to expect that Texas would also be hit the most fatalities, however we cannot comment unless we look at the graph.
 
-```{r}
+
+```{r echo=FALSE}
 
 ggplot(data=states, aes(x=STATE, y=FATALITIES)) +
-        geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+        geom_bar(stat="identity")+scale_x_discrete()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("number of fatalities vs states")
 ```
 
-The state of illinois has been most severly hit by weather events culminating in many deaths.
+The state of illinois has been most severly hit by weather events culminating in many deaths. This could help provide data to the illinois government to support its residents during natural events that are to occur in the future. Also, in second place we have the state of Texas thus giving us insights that it has been hit with some of the worst events.
 
-```{r}
+
+```{r echo=FALSE}
 
 ggplot(data=states, aes(x=STATE, y=PROPDMG)) +
-        geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+        geom_bar(stat="identity")+scale_x_discrete()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("property damage in millions vs states")
 ```
 
 Property damage on the other hand has shows data consisent with further analysis at the end of the report. We find that kentucky is the worst hit in terms of property damage. The histogram depicting the crop damages that have occured over the years are depicted below:
 
-```{r}
+```{r echo=FALSE}
 
 ggplot(data=states, aes(x=STATE, y=CROPDMG)) +
-        geom_bar(stat="identity")+scale_x_discrete()+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+        geom_bar(stat="identity")+scale_x_discrete()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("crop damages in millions vs states")
 ```
 
-## Bivariate Plots
+
 Let's look at a few scatter plots to identify - if there is any kind of relationship present between a few features. 
 
 We begin by comparing two features i.e fatalities and injuries. We get the following result:
 
-```{r message=FALSE,warning=FALSE}
-ggplot(smallData, aes(x=INJURIES,y=FATALITIES))+geom_point(shape=1)+geom_smooth()+scale_y_continuous(limits = c(0,100)) + scale_x_continuous(limits = c(0,1000))
+```{r message=FALSE,warning=FALSE, echo=FALSE}
+ggplot(smallData, aes(x=INJURIES,y=FATALITIES))+geom_point(shape=1)+
+  geom_smooth()+scale_y_continuous(limits = c(0,100)) +
+  scale_x_continuous(limits = c(0,1000))
 ```
 
 The graph shows some kind of linear relationship between the two variables which would make sense: Let's say a person is injured due to an unforseeable calamity like flood or lightning. If this event were to have a very serious effect on the person, he/she could succumb to the injury which could lead to a fatality.
 
 Let's look at the relationship between property damage and crop damage:
 
-```{r message=FALSE,warning=FALSE}
+```{r message=FALSE,warning=FALSE, fig.width=10, echo=FALSE}
+
 fatalities<-subset(smallData,FATALITIES > 0 & INJURIES > 0)
-x<-ggplot(fatalities, aes(x=PROPDMG,y=CROPDMG,))+geom_point(shape=1)+geom_smooth()
+
+x<-ggplot(fatalities, aes(x=PROPDMG,y=CROPDMG,))+geom_point(shape=1)+
+  geom_smooth()
+
 x + facet_grid(. ~ category)+scale_y_continuous(limits=c(0,1000))
 ```
 
@@ -266,7 +362,7 @@ Events like Extreme Temperatures have a large effect on crops rather than proper
 ##Multivariate Plots
 This section will cover more detailed plots and multiple scatter plots togther to find some kind of relationships between variables quickly.
 
-```{r message=FALSE,warning=FALSE, tidy=FALSE}
+```{r message=FALSE,warning=FALSE, tidy=FALSE, fig.width=10, echo=FALSE}
 ggplot(smallData, aes(LONGITUDE, LATITUDE, colour = smallData$FATALITIES,100))+
   geom_point(size = 4,shape = 1, colour = "steelblue", alpha = 0.4) +
   labs(x = "Longitude", y = "Latitude") + 
@@ -275,7 +371,7 @@ ggplot(smallData, aes(LONGITUDE, LATITUDE, colour = smallData$FATALITIES,100))+
 
 Figure above shows the fatalities and in which Latitude and Longitude they are concentrated. Most of the data shows a slight amount of fatalities due to the overplotting of blue dots. In order to get a better perspective we will use the maps package to plot the fatalities on Map of USA.
 
-```{r message=FALSE,warning=FALSE}
+```{r message=FALSE,warning=FALSE, fig.width=10, echo=FALSE}
 ggplot(smallData, aes(LONGITUDE, LATITUDE, colour = smallData$FATALITIES)) + 
   geom_point(size = 1,shape = 1, colour = "steelblue", alpha = 0.4) + 
   labs(x = "Longitude", y = "Latitude") + scale_colour_grey() + 
@@ -284,7 +380,7 @@ ggplot(smallData, aes(LONGITUDE, LATITUDE, colour = smallData$FATALITIES)) +
 
 Figure above shows multiple deaths in the case of Convection Events and Flood Events.
 
-```{r message=FALSE,warning=FALSE}
+```{r message=FALSE,warning=FALSE, fig.width=10, echo=FALSE}
 pairs(~FATALITIES+INJURIES+PROPDMG+CROPDMG,data=smallData, 
     main="Simple Scatterplot Matrix for various variables")
 ```
@@ -301,17 +397,8 @@ On Reviewing all the insights from the graphs and exploratory data analysis, fol
 - Flooding events have the most effect on property and crops.
 
 ## Final Plots and Results
-### Severe weather events that cause the largest number of incidents
-Calculate a total of all fatalities and injuries, so that we can find what events have the highest number of incidents. The new column is called incidents.  
 
-```{r}
-smallData$incidents = smallData$FATALITIES + smallData$INJURIES
-```
-
-We create a new set with the aggregate of the incidents grouped by the event types.
-
-### Results
-## Severe weather events that cause the largest number of incidents
+## Severe weather events that cause the largest number of incidents to population?
 Calculate a total of all fatalities and injuries, so that we can find what events have the highest number of incidents. The new column is called incidents.  
 ```{r}
 smallData$incidents = smallData$FATALITIES + smallData$INJURIES
@@ -319,7 +406,8 @@ smallData$incidents = smallData$FATALITIES + smallData$INJURIES
 We create a new set with the aggregate of the incidents grouped by the event types.
 
 ```{r}
-incidentData <- aggregate(list(incidents = smallData$incidents), by = list(event = smallData$category), 
+incidentData <- aggregate(list(incidents = smallData$incidents),
+                          by = list(event = smallData$category), 
     FUN = sum, na.rm = TRUE)
 ```
 
@@ -329,14 +417,16 @@ Here is the overview of the event categories with the number of incidents
 
 ```{r}
 incidentData$event <- reorder(incidentData$event, -incidentData$incidents)
-ggplot(incidentData, aes(y = incidents)) + theme(axis.text.x = element_text(angle = 90, 
-    hjust = 1)) + geom_bar(aes(x = event), data = incidentData, stat = "identity") + 
-    ggtitle("Fatalities and Injuries") + xlab("Event Category") + ylab("No. of Fatalities and Injuries")
+ggplot(incidentData, aes(y = incidents)) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_bar(aes(x = event), data = incidentData, stat = "identity") + 
+    ggtitle("Fatalities and Injuries") +
+  xlab("Event Category") + ylab("No. of Fatalities and Injuries")
 ```
 
 Clearly the convection events (Lightning, Tornadoes, Thunderstorm Wind, Hail) has the greatest effect on injury and fatality.
 
-## Severe weather events that cause the largest amount of damage
+## Severe weather events that cause the largest amount of damage to economy?
 
 Add a field with a total of all damage, both to property as well as to crop, so that we can find our what events cause the highest amount of damage. The new column is called damage. The column is in billions of dollars.  
 
@@ -347,7 +437,8 @@ smallData$damage = ((smallData$propertydamage + smallData$cropdamage)/1e+09)
 We create a new set with the aggregate of the damage grouped by the event types.  
 
 ```{r}
-damageData <- aggregate(list(damage = smallData$damage), by = list(event = smallData$category), 
+damageData <- aggregate(list(damage = smallData$damage),
+                        by = list(event = smallData$category), 
     FUN = sum, na.rm = TRUE)
 ```
 
@@ -355,9 +446,12 @@ Here is the overview of the event categories with the amount of damage
 
 ```{r}
 damageData$event <- reorder(damageData$event, -damageData$damage)
-ggplot(damageData, aes(y = damage)) + theme(axis.text.x = element_text(angle = 90, 
-    hjust = 1)) + geom_bar(aes(x = event), data = damageData, stat = "identity") + 
-    ggtitle("Property and crop damage") + xlab("Event Category") + ylab("Amount of damage (billions of $)")
+ggplot(damageData, aes(y = damage)) +
+  theme(axis.text.x = element_text(angle = 90, 
+    hjust = 1)) +
+  geom_bar(aes(x = event), data = damageData, stat = "identity") + 
+    ggtitle("Property and crop damage") + xlab("Event Category") +
+  ylab("Amount of damage (billions of $)")
 ```
 
 
@@ -365,15 +459,22 @@ Clearly the flooding events (Flash Flood, River Flood) have the greatest effect 
 
 After Converting the data into an aggregate form and replacing state abbreviations with their name, I built a new csv containing the aggregate data and removed the states that were not present in the maps package
 
-```{r}
+```{r echo=FALSE}
 states_map <- map_data("state")
+
 data<-read.csv('events.agg.csv')
-aggdata<-aggregate(data[,c('FATALITIES','INJURIES','PROPDMG','CROPDMG')],by=list(data$STATE),FUN=sum)
+
+aggdata<-aggregate(data[,c('FATALITIES','INJURIES','PROPDMG','CROPDMG')],
+                   by=list(data$STATE),FUN=sum)
+
 aggdata$Affected = aggdata$FATALITIES+aggdata$INJURIES
-colnames(aggdata)<-c("STATE","FATALITIES","INJURIES","PROPDMG","CROPDMG","Affected")
+
+colnames(aggdata)<-c("STATE","FATALITIES","INJURIES",
+                     "PROPDMG","CROPDMG","Affected")
 aggdata$STATE<-as.character(aggdata$STATE)
 p <- ggplot(aggdata, aes(map_id = STATE))
-p <- p + geom_map(aes(fill = Affected), map = states_map, colour='black') + expand_limits(x = states_map$long, y = states_map$lat)
+p <- p + geom_map(aes(fill = Affected), map = states_map, colour='black') +
+  expand_limits(x = states_map$long, y = states_map$lat)
 p <- p + coord_map() + theme_bw()
 p <- p + labs(x = "Long", y = "Lat", title = "Health and Population damages")
 print(p)
@@ -381,15 +482,41 @@ print(p)
 
 Figure above shows thet total damage to health i.e lives and as we can see the most affected states are the western states due to the fact that they are victims of events like tornadoes and hurricanes. Let us know look at the damage to Economy which includes property and crop damages
 
-```{r}
+```{r echo=FALSE}
 aggdata$Damages<-aggdata$CROPDMG+aggdata$PROPDMG
 p <- ggplot(aggdata, aes(map_id = STATE))
-p <- p + geom_map(aes(fill = Damages), map = states_map, colour='black') + expand_limits(x = states_map$long, y = states_map$lat)
+p <- p + geom_map(aes(fill = Damages), map = states_map, colour='black') +
+  expand_limits(x = states_map$long, y = states_map$lat)
 p <- p + coord_map() + theme_bw()
-p <- p + labs(x = "Long", y = "Lat", title = "Economic Damages in millions(USD)")
+p <- p + 
+  labs(x = "Long", y = "Lat", title = "Economic Damages in millions(USD)")
 print(p)
 ```
 As we can see the western and central states of USA have been hit hard causing huge losses to economy fro the years 1950-2011.
+
+## Which natural disasters are the most costly(In depth analysis)?
+
+```{r echo=FALSE}
+ggplot(data,aes(x=EVTYPE,y=PROPDMG))+
+     theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+     geom_bar(stat="identity")+xlab("Weather Event Types")+
+     ylab("Property Damage in Millions")+
+     ggtitle("Natural Events that are the most costliest")
+```
+
+Tropical storms/hurricanes are the most dangerous events and they cause the most destruction to property. These events come under Convection events and hence as seen in the trends above, we find that convection events on an average occur more than other categories of events. Thus, we can say that relef measures fo these kinds of events are a must to mitigate the damages done.
+
+## Which natural disasters cause the most damage to crops(in depth analysis)?
+
+```{r echo=FALSE}
+ggplot(data,aes(x=EVTYPE,y=CROPDMG))+
+     theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+     geom_bar(stat="identity")+xlab("Weather Event Types")+
+     ylab("CROP Damage in Millions")+
+     ggtitle("Natural Events that cause the most damage to crops")
+```
+
+This question makes us think of the most obvious answer which would be either floods or droughts as they cause the most damages to vegetation on an average. Even from the graph our intuition is proved as drought and flood are he major causes of damages to crops.
 
 ##Reflections
 - There were many challenges in this project particularly due to the fact that there was so much cleaning up to do in order to get the data ready to be analysed. I believe, I may have ballparked a few data, however My initial EDA conforms to the final conclusion which I have given.
@@ -397,4 +524,5 @@ As we can see the western and central states of USA have been hit hard causing h
 - As far as the imporvement in analysis is concerned, I believe a few more correlations between the features at stake would go onto provide more insights into the data set.
 - My Analysis has been that in terms of a broad sense. A few more intricate details can be covered within this data set leading to better results and conclusion from the data.
 - Features are less due to the fact that a large number of values are noth fathomable and have averaged ot value.
+- The most challenging aspect of ths data set was the amount of cleaning to be done, event to just obtain the chloropleths.
 
